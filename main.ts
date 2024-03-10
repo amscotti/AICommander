@@ -65,7 +65,8 @@ async function main(
   const path = Deno.cwd();
   const files = [...Deno.readDirSync(path)].map((file) => file.name).join(" ");
 
-  const systemPrompt = `You are helpful assistant specializing in the command line for ${os}.
+  const systemPrompt =
+    `You are helpful assistant specializing in the command line for ${os}.
   You are also working in the directory ${path}, with files named ${files}.`;
 
   const response: CommandResponse = await oraPromise(

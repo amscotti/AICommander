@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "dev": "deno run -A ./main.ts",
+    "compile": "deno compile --output AICommander -A ./main.ts"
+  }
+}

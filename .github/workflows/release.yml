@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          [
+            x86_64-unknown-linux-gnu,
+            aarch64-unknown-linux-gnu,
+            x86_64-apple-darwin,
+            aarch64-apple-darwin,
+          ]
+
+    steps:
+      - name: "🧾 Checkout code"
+        uses: actions/checkout@v3
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@61fe2df320078202e33d7d5ad347e7dcfa0e8f31 # v1.1.2
+        with:
+          deno-version: v1.41.x
+
+      - name: "👷 Building project"
+        run: |
+          deno compile --allow-all --target ${{ matrix.platform }} --output=ai-commander-${{ matrix.platform }} main.ts
+        shell: bash
+
+      - name: "📦 Upload release asset"
+        run: |
+          cd ${{ github.workspace }}
+          gh release upload ${{ github.event.release.tag_name }} ai-commander-${{ matrix.platform }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash

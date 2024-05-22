@@ -8,11 +8,11 @@ import {
   EnumType,
 } from "https://deno.land/x/cliffy@v1.0.0-rc.3/command/mod.ts";
 
-const DEFAULT_MODEL = "gpt-3.5-turbo";
+const DEFAULT_MODEL = "gpt-4o";
 
 const modelType = new EnumType([
-  "gpt-4-turbo-preview",
-  "gpt-4",
+  "gpt-4o",
+  "gpt-4-turbo",
   "gpt-3.5-turbo",
 ]);
 

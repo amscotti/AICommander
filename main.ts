@@ -1,43 +1,30 @@
-import OpenAI from "npm:openai";
-import { green } from "https://deno.land/std@0.219.0/fmt/colors.ts";
-import Instructor from "npm:@instructor-ai/instructor";
-import { z } from "npm:zod";
+import { OpenAI } from "https://deno.land/x/openai@v4.67.0/mod.ts";
+import { green } from "jsr:@std/fmt/colors";
 import { oraPromise } from "npm:ora";
-import {
-  Command,
-  EnumType,
-} from "https://deno.land/x/cliffy@v1.0.0-rc.3/command/mod.ts";
+import { parseArgs } from "jsr:@std/cli/parse-args";
 
-const DEFAULT_MODEL = "gpt-4o";
+const DEFAULT_MODEL = "gpt-4o-mini-2024-07-18";
 
-const modelType = new EnumType([
-  "gpt-4o",
-  "gpt-4-turbo",
-  "gpt-3.5-turbo",
-]);
+const COMMAND_SCHEMA = {
+  type: "object",
+  properties: {
+    command: {
+      type: "string",
+      description:
+        "Suggested command, remember to add quotes around items, if needed especially if there's newline characters",
+    },
+    reasoning: {
+      type: "string",
+      description:
+        "The reasoning for the suggested command, and explanation of what the command does",
+    },
+  },
+  additionalProperties: false,
+  required: ["command", "reasoning"],
+};
 
-const CommandSchema = z.object({
-  command: z
-    .string()
-    .describe(
-      "Suggested command, remember to add quotes around items, if needed especially if there's newline characters",
-    ),
-  reasoning: z
-    .string()
-    .describe(
-      "The reasoning for the suggested command, and explanation of what the command does",
-    ),
-});
-
-type CommandResponse = z.infer<typeof CommandSchema>;
-
-const openai: OpenAI = new OpenAI({
+const client: OpenAI = new OpenAI({
   apiKey: Deno.env.get("OPENAI_API_KEY") ?? "",
-});
-
-const client = Instructor({
-  client: openai,
-  mode: "FUNCTIONS",
 });
 
 /**
@@ -57,10 +44,7 @@ async function run(command: string): Promise<void> {
   await cmd.stdout.pipeTo(Deno.stdout.writable);
 }
 
-async function main(
-  { model = DEFAULT_MODEL },
-  question: string,
-): Promise<void> {
+async function main(question: string, autoRun = false): Promise<void> {
   const os = Deno.build.os;
   const path = Deno.cwd();
   const files = [...Deno.readDirSync(path)].map((file) => file.name).join(" ");
@@ -69,37 +53,60 @@ async function main(
     `You are helpful assistant specializing in the command line for ${os}.
   You are also working in the directory ${path}, with files named ${files}.`;
 
-  const response: CommandResponse = await oraPromise(
-    client.chat.completions.create({
+  const completion = await oraPromise(
+    client.beta.chat.completions.parse({
+      model: DEFAULT_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: question },
       ],
-      model,
-      response_model: { schema: CommandSchema, name: "ExtractName" },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          strict: true,
+          name: "command",
+          schema: COMMAND_SCHEMA,
+        },
+      },
     }),
     "Answering",
   );
 
-  console.log("Command:", green(response.command));
-  console.log(`\n${response.reasoning}\n`);
+  const response = completion.choices[0].message.parsed;
+  if (!response) {
+    console.error("Error communicating with OpenAI");
+    Deno.exit(1);
+  }
 
-  const input = prompt("Do you want to run this command? (y/n) ");
-  if (input?.toLowerCase().startsWith("y")) {
-    console.log("Executing command:", `${green(response.command)}\n`);
-    await run(response.command);
+  const { command, reasoning } = response;
+
+  console.log("Command:", green(command));
+  console.log(`\n${reasoning}\n`);
+
+  if (autoRun) {
+    await run(command);
+  } else {
+    const input = prompt("Do you want to run this command? (y/n) ");
+    if (input?.toLowerCase().startsWith("y")) {
+      console.log("Executing command:", `${green(command)}\n`);
+      await run(command);
+    }
   }
 
   Deno.exit(0);
 }
 
-await new Command()
-  .name("AICommander")
-  .description("AI powered command line tool")
-  .type("model", modelType)
-  .option("-m, --model <name:model>", "The OpenAI model name", {
-    default: DEFAULT_MODEL,
-  })
-  .arguments("<question:string>")
-  .action(main)
-  .parse(Deno.args);
+if (import.meta.main) {
+  const args = parseArgs(Deno.args, {
+    boolean: ["r"],
+    alias: { r: ["auto-run"] },
+    default: { r: false },
+  });
+
+  const {
+    _: [question = ""],
+    r,
+  } = args as unknown as { _: [string]; r: boolean };
+
+  await main(question, r);
+}

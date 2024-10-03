@@ -13,7 +13,6 @@ command line operations for different operating systems.
 
 ## Features
 
-- Supports multiple OpenAI models including GPT-4 and GPT-3.5.
 - Generates command line instructions tailored to the user's operating system
   and current directory.
 - Provides reasoning for each generated command.
@@ -42,7 +41,7 @@ deno run -A main.ts
 You can specify the model to use with the `-m` or `--model` option:
 
 ```sh
-deno run -A main.ts -m gpt-4-turbo-preview "What is the command to list all files?"
+deno run -A main.ts "What is the command to list all files?"
 ```
 
 Follow the interactive prompt to execute the command if you agree with the

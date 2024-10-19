@@ -1,4 +1,4 @@
-import { OpenAI } from "https://deno.land/x/openai@v4.67.0/mod.ts";
+import { OpenAI } from "https://deno.land/x/openai@v4.68.1/mod.ts";
 import { green } from "jsr:@std/fmt/colors";
 import { oraPromise } from "npm:ora";
 import { parseArgs } from "jsr:@std/cli/parse-args";
@@ -51,7 +51,7 @@ async function main(question: string, autoRun = false): Promise<void> {
 
   const systemPrompt =
     `You are helpful assistant specializing in the command line for ${os}.
-  You are also working in the directory ${path}, with files named ${files}.`;
+  You are working in the directory ${path}, with files named ${files}.`;
 
   const completion = await oraPromise(
     client.beta.chat.completions.parse({
@@ -83,14 +83,9 @@ async function main(question: string, autoRun = false): Promise<void> {
   console.log("Command:", green(command));
   console.log(`\n${reasoning}\n`);
 
-  if (autoRun) {
+  if (autoRun || confirm("Do you want to run this command?")) {
+    console.log("Executing command:", `${green(command)}\n`);
     await run(command);
-  } else {
-    const input = prompt("Do you want to run this command? (y/n) ");
-    if (input?.toLowerCase().startsWith("y")) {
-      console.log("Executing command:", `${green(command)}\n`);
-      await run(command);
-    }
   }
 
   Deno.exit(0);
@@ -107,6 +102,18 @@ if (import.meta.main) {
     _: [question = ""],
     r,
   } = args as unknown as { _: [string]; r: boolean };
+
+  if (!question) {
+    console.log("Please provide a command or question to execute.");
+    Deno.exit(1);
+  }
+
+  if (!Deno.env.has("OPENAI_API_KEY")) {
+    console.error(
+      "Error: OPENAI_API_KEY is not set. Please set this environment variable.",
+    );
+    Deno.exit(1);
+  }
 
   await main(question, r);
 }

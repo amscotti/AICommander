@@ -1,6 +1,23 @@
 {
   "tasks": {
     "dev": "deno run -A ./main.ts",
+    "start": "deno run -A ./main.ts",
+    "test": "deno test -A",
     "compile": "deno compile --output ai-commander -A ./main.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.0",
+    "@std/assert/assert-equals": "jsr:@std/assert/assert-equals@^1.0.0",
+    "@std/assert/assert-exists": "jsr:@std/assert/assert-exists@^1.0.0",
+    "@std/cli": "jsr:@std/cli@^1.0.0",
+    "@std/cli/parse-args": "jsr:@std/cli@^1.0.0/parse-args",
+    "@std/cli/unstable-spinner": "jsr:@std/cli@^1.0.0/unstable-spinner",
+    "@std/fmt": "jsr:@std/fmt@^1.0.0",
+    "@std/fmt/colors": "jsr:@std/fmt@^1.0.0/colors",
+    "@ai-sdk/anthropic": "npm:@ai-sdk/anthropic@latest",
+    "@ai-sdk/openai": "npm:@ai-sdk/openai@latest",
+    "@ai-sdk/xai": "npm:@ai-sdk/xai@latest",
+    "ai": "npm:ai@latest",
+    "zod": "npm:zod@latest"
   }
 }

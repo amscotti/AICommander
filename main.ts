@@ -1,50 +1,30 @@
-import { OpenAI } from "https://deno.land/x/openai@v4.68.1/mod.ts";
-import { green } from "jsr:@std/fmt/colors";
-import { oraPromise } from "npm:ora";
-import { parseArgs } from "jsr:@std/cli/parse-args";
+import { green } from "@std/fmt/colors";
+import { parseArgs } from "@std/cli/parse-args";
+import { Spinner } from "@std/cli/unstable-spinner";
+import { generateText, Output } from "ai";
+import { z } from "zod";
+import { getAvailableProvider } from "./provider/models.ts";
 
-const DEFAULT_MODEL = "gpt-4o-mini-2024-07-18";
-
-const COMMAND_SCHEMA = {
-  type: "object",
-  properties: {
-    command: {
-      type: "string",
-      description:
-        "Suggested command, remember to add quotes around items, if needed especially if there's newline characters",
-    },
-    reasoning: {
-      type: "string",
-      description:
-        "The reasoning for the suggested command, and explanation of what the command does",
-    },
-  },
-  additionalProperties: false,
-  required: ["command", "reasoning"],
-};
-
-const client: OpenAI = new OpenAI({
-  apiKey: Deno.env.get("OPENAI_API_KEY") ?? "",
+export const COMMAND_SCHEMA = z.object({
+  command: z.string().describe(
+    "Suggested command, remember to add quotes around items, if needed especially if there's newline characters",
+  ),
+  reasoning: z.string().describe(
+    "The reasoning for the suggested command, and explanation of what the command does",
+  ),
 });
 
-/**
- * Executes the command constructed from the AI response.
- * The command is executed in a shell environment using Deno's Command API.
- * The output of the command is streamed to the console.
- *
- * @param response - The grouped command response from the AI model, containing one or more commands and reasoning.
- */
 async function run(command: string): Promise<void> {
   const cmd = new Deno.Command("sh", {
     args: ["-c", command],
     stdout: "piped",
   }).spawn();
 
-  // Stream the command output to the console
   await cmd.stdout.pipeTo(Deno.stdout.writable);
 }
 
 async function main(question: string, autoRun = false): Promise<void> {
+  const provider = getAvailableProvider();
   const os = Deno.build.os;
   const path = Deno.cwd();
   const files = [...Deno.readDirSync(path)].map((file) => file.name).join(" ");
@@ -53,31 +33,21 @@ async function main(question: string, autoRun = false): Promise<void> {
     `You are helpful assistant specializing in the command line for ${os}.
   You are working in the directory ${path}, with files named ${files}.`;
 
-  const completion = await oraPromise(
-    client.beta.chat.completions.parse({
-      model: DEFAULT_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: question },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          strict: true,
-          name: "command",
-          schema: COMMAND_SCHEMA,
-        },
-      },
+  const spinner = new Spinner({ message: "Thinking..." });
+  spinner.start();
+
+  const completion = await generateText({
+    model: provider.model,
+    system: systemPrompt,
+    prompt: question,
+    output: Output.object({
+      schema: COMMAND_SCHEMA,
     }),
-    "Answering",
-  );
+  });
 
-  const response = completion.choices[0].message.parsed;
-  if (!response) {
-    console.error("Error communicating with OpenAI");
-    Deno.exit(1);
-  }
+  spinner.stop();
 
+  const response = completion.output;
   const { command, reasoning } = response;
 
   console.log("Command:", green(command));
@@ -93,27 +63,18 @@ async function main(question: string, autoRun = false): Promise<void> {
 
 if (import.meta.main) {
   const args = parseArgs(Deno.args, {
-    boolean: ["r"],
-    alias: { r: ["auto-run"] },
-    default: { r: false },
+    boolean: ["r"] as const,
+    alias: { r: "auto-run" } as const,
+    default: { r: false } as const,
   });
 
-  const {
-    _: [question = ""],
-    r,
-  } = args as unknown as { _: [string]; r: boolean };
+  const question = args._[0]?.toString() ?? "";
+  const autoRun = args.r;
 
   if (!question) {
     console.log("Please provide a command or question to execute.");
     Deno.exit(1);
   }
 
-  if (!Deno.env.has("OPENAI_API_KEY")) {
-    console.error(
-      "Error: OPENAI_API_KEY is not set. Please set this environment variable.",
-    );
-    Deno.exit(1);
-  }
-
-  await main(question, r);
+  await main(question, autoRun);
 }
